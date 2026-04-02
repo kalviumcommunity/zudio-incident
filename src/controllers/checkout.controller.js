@@ -66,8 +66,8 @@ const checkout = async (req, res) => {
       // insert order items
       for (const item of cartItems) {
         await pool.query(
-          'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)',
-          [order.id, item.productId, item.quantity, item.product.price]
+          'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
+          [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
         )
       }
 
@@ -99,8 +99,8 @@ const checkout = async (req, res) => {
 
     for (const item of cartItems) {
       await pool.query(
-        'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)',
-        [order.id, item.productId, item.quantity, item.product.price]
+        'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
+        [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
       )
     }
 
