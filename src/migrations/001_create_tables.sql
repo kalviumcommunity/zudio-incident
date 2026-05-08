@@ -103,3 +103,9 @@ CREATE TABLE coupons (
   expires_at      TIMESTAMP,
   created_at      TIMESTAMP DEFAULT NOW()
 );
+
+-- ------------------------------------------------------------
+-- indexes for history lookups
+-- ------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_orders_user_id_created_at ON orders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
