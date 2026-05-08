@@ -15,4 +15,17 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err)
 })
 
+// Wrap pool.query to count queries per request (used by profiling middleware)
+const _originalQuery = pool.query.bind(pool)
+pool.query = (text, params) => {
+  try {
+    if (global.currentRequest && typeof global.currentRequest._queryCount === 'number') {
+      global.currentRequest._queryCount++
+    }
+  } catch (e) {
+    // noop - profiling must never break DB calls
+  }
+  return _originalQuery(text, params)
+}
+
 module.exports = pool

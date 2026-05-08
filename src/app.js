@@ -15,6 +15,21 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Profiling middleware: measure response time and DB query count per request
+app.use((req, res, next) => {
+  req._startTime = Date.now()
+  req._queryCount = 0
+  // expose current request globally so db wrapper can increment query counter
+  global.currentRequest = req
+  res.on('finish', () => {
+    const duration = Date.now() - req._startTime
+    console.log(`[PROFILE] ${req.method} ${req.path} → ${duration}ms | ${req._queryCount} queries`)
+    // clear global pointer when request finishes
+    if (global.currentRequest === req) global.currentRequest = null
+  })
+  next()
+})
+
 // routes
 app.use('/api/products', productRoutes)
 app.use('/api/auth', authRoutes)
