@@ -190,3 +190,16 @@ Active buyers with large order histories. Endpoint gets progressively slower and
 
 **Fix Plan:**
 Replace iterative lookups with joined/batched queries (orders + items + products), then map rows to response objects in memory.
+
+### Before vs After (Post-Fix Verification)
+
+| Metric                                    |  Before |  After |
+| ----------------------------------------- | ------: | -----: |
+| Query count (`GET /api/orders/history`)   | `1+N+M` |    `1` |
+| Response time (`GET /api/orders/history`) |  `15ms` | `40ms` |
+
+Notes:
+
+- Before values were captured in earlier profiling from Step 3.
+- After values were captured against the patched server on port 3001 (`[PROFILE] GET /history -> 40ms | 1 queries`).
+- The query-count fix is deterministic and removes linear DB round trips as history size grows; single-run latency can vary by environment.
