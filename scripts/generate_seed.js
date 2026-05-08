@@ -4,6 +4,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const bcrypt = require('bcrypt')
 
 const lines = []
 const w = (s) => lines.push(s)
@@ -283,14 +284,15 @@ const userNames = [
 
 const toEmail = (name) => name.toLowerCase().replace(/\s+/g,'.')+'@example.com'
 
-w('-- Users (50 — passwords stored plaintext, intentional bug)')
+w('-- Users (50 — passwords hashed with bcrypt)')
 w('INSERT INTO users (name, email, password, phone, role) VALUES')
 const userRows = userNames.map((name, i) => {
   const email = toEmail(name)
   const pw = name.split(' ')[0].toLowerCase() + (1000 + i)
+  const hashedPassword = bcrypt.hashSync(pw, 12)
   const phone = `9${String(800000000 + i * 7919).slice(0, 9)}`
   const role = i === 48 ? 'admin' : 'customer'
-  return `  ('${name}', '${email}', '${pw}', '${phone}', '${role}')`
+  return `  ('${name}', '${email}', '${hashedPassword}', '${phone}', '${role}')`
 })
 w(userRows.join(',\n') + ';')
 w('')
