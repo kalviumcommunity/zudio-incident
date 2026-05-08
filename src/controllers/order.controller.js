@@ -5,39 +5,46 @@ const getOrderHistory = async (req, res) => {
   try {
     const userId = req.user.userId
 
-    // fetch all orders for this user
-    const ordersResult = await pool.query(
-      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+    // fetch orders with items and product details in a single query (avoid N+1)
+    const rows = await pool.query(
+      `SELECT o.id as order_id, o.user_id, o.total_amount, o.discount, o.status, o.created_at,
+              oi.id as order_item_id, oi.product_id, oi.quantity, oi.unit_price,
+              p.name as product_name, p.image_url
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       LEFT JOIN products p ON p.id = oi.product_id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC`,
       [userId]
     )
 
-    const orders = ordersResult.rows
-
-    // now we need to get the items for each order
-    for (const order of orders) {
-      const itemsResult = await pool.query(
-        'SELECT * FROM order_items WHERE order_id = $1',
-        [order.id]
-      )
-
-      const items = []
-
-      // get product details for each item in the order
-      for (const item of itemsResult.rows) {
-        const productResult = await pool.query(
-          'SELECT id, name, price, image_url FROM products WHERE id = $1',
-          [item.product_id]
-        )
-
-        items.push({
-          ...item,
-          product: productResult.rows[0] || null,
+    // group rows by order
+    const ordersMap = new Map()
+    for (const r of rows.rows) {
+      const oid = r.order_id
+      if (!ordersMap.has(oid)) {
+        ordersMap.set(oid, {
+          id: oid,
+          user_id: r.user_id,
+          total_amount: r.total_amount,
+          discount: r.discount,
+          status: r.status,
+          created_at: r.created_at,
+          items: [],
         })
       }
 
-      order.items = items
+      const order = ordersMap.get(oid)
+      order.items.push({
+        id: r.order_item_id,
+        product_id: r.product_id,
+        quantity: r.quantity,
+        unit_price: r.unit_price,
+        product: r.product_name ? { name: r.product_name, image_url: r.image_url } : null,
+      })
     }
 
+    const orders = Array.from(ordersMap.values())
     res.json({ orders })
   } catch (err) {
     console.error('getOrderHistory error:', err.message)

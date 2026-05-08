@@ -1,4 +1,4 @@
-<!-- # 🛍️ Zudio Backend API
+# 🛍️ Zudio Backend API
 
 <div align="center">
 
@@ -112,4 +112,4 @@ zudio-backend/
 
 Made with ☕ by the Zudio dev team
 
-</div> -->
+</div>

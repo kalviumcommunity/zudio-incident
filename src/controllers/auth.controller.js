@@ -1,7 +1,6 @@
 const pool = require('../db')
 const jwt = require('jsonwebtoken')
-// bcrypt is installed but haven't wired it up yet
-// const bcrypt = require('bcrypt')
+const bcrypt = require('bcrypt')
 // express-validator for future validation
 const { validationResult } = require('express-validator')
 
@@ -21,16 +20,17 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' })
     }
 
-    // TODO: add password hashing before prod — ask Rahul
+    // hash password before storing
+    const hashed = await bcrypt.hash(password, 12)
     const result = await pool.query(
       'INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, created_at',
-      [name, email, password, phone || null]
+      [name, email, hashed, phone || null]
     )
 
     const user = result.rows[0]
 
-    // debug log — remove before deploy
-    console.log('New user registered:', { ...req.body })
+    // debug log — avoid printing passwords
+    console.log('New user registered:', { name, email, phone })
 
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: '7d',
@@ -63,8 +63,9 @@ const login = async (req, res) => {
 
     const user = result.rows[0]
 
-    // compare password — TODO: use bcrypt.compare once hashing is added
-    if (user.password !== password) {
+    // compare password using bcrypt
+    const ok = await bcrypt.compare(password, user.password)
+    if (!ok) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
