@@ -11,7 +11,14 @@ const getProducts = async (req, res) => {
 
     if (search) {
       // search by name
-      const query = `SELECT * FROM products WHERE name LIKE '%${req.query.search}%'`
+      const query = `
+SELECT * FROM products
+WHERE name ILIKE $1
+`
+
+const products = await pool.query(query, [
+  `%${req.query.search}%`
+])
       result = await pool.query(query)
     } else if (category) {
       result = await pool.query(
