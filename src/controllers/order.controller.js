@@ -24,6 +24,8 @@ const getOrderHistory = async (req, res) => {
 
       // get product details for each item in the order
       for (const item of itemsResult.rows) {
+        // BUG: [MEDIUM] N+1 query pattern — each order item triggers a separate product lookup.
+        // Response time scales linearly with order size and this endpoint becomes expensive fast.
         const productResult = await pool.query(
           'SELECT id, name, price, image_url FROM products WHERE id = $1',
           [item.product_id]

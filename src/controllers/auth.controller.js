@@ -21,7 +21,8 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' })
     }
 
-    // TODO: add password hashing before prod — ask Rahul
+    // BUG: [CRITICAL] Sensitive data exposure — passwords are stored in plaintext in the database.
+    // Anyone who can read the DB can recover raw passwords instead of irreversible hashes.
     const result = await pool.query(
       'INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, created_at',
       [name, email, password, phone || null]

@@ -1,20 +1,101 @@
-# Endpoint Audit
+# Bug Audit
 
-Observed against the live local API after seeding the Supabase database and enabling profiling middleware.
+## Bug 1: SQL Injection in Product Search
 
-| Endpoint | Response Time | Query Count | Observation |
-|---|---:|---:|---|
-| GET /api/products | 483ms | 1 | Returns 20 products and count 20; product 1 stock was 243. |
-| GET /api/products?search=shirt | 76ms | 1 | Returned an empty list even though seed data contains shirt products; search appears case-sensitive. |
-| GET /api/products?search=shirt' OR '1'='1 | 68ms | 1 | Returned an empty list; the search term is interpolated into SQL directly, so this path is fragile even though no rows came back in this test. |
-| POST /api/auth/register | 565ms | 2 | Registration succeeded for a new user and returned a JWT. |
-| POST /api/auth/login | 87ms | 1 | Login succeeded for the same user and returned a JWT. |
-| GET /api/orders/history | 79ms | 1 | Returned an empty orders array for the new user. |
-| POST /api/cart/checkout | 414ms | 5 | Order succeeded with coupon `ZUDIO100`; created order 499 with a 100 discount. |
-| POST /api/cart/checkout (same coupon again) | 195ms | 2 | Reusing the same coupon returned `Invalid or expired coupon`. |
-| GET /api/products (after checkout) | 176ms | 1 | Product 1 stock stayed at 243, so checkout does not currently decrement stock. |
+**Severity:** CRITICAL
+**File:** src/controllers/product.controller.js
+**Line:** 14
 
-## Notes
+**Root Cause:**
+The `search` query parameter is concatenated directly into a SQL string, so PostgreSQL receives attacker-controlled SQL instead of data-bound parameters.
 
-- The profiler logs show `/api/products` as `GET /`, `/api/orders/history` as `GET /history`, and checkout as `POST /checkout` because the middleware runs inside mounted routers.
-- The checkout path confirms coupon one-time use, but stock reduction is still commented out in the controller.
+**Reproduction Steps:**
+1. Send `GET /api/products?search=shirt%27%20OR%20%271%27%3D%271` with `curl` or Postman.
+2. Observe that the endpoint still executes the raw interpolated query branch.
+3. Expected: parameterized search that treats input as plain text. Actual: raw SQL string construction that can be extended into arbitrary SQL.
+
+**Affected Users / Impact:**
+Any user searching products can trigger a database read/manipulation vulnerability. A crafted payload could expose or modify data across the catalog.
+
+**Fix Plan:**
+Replace string interpolation with a parameterized `ILIKE` or `LIKE` query and bind the search term as a value.
+
+## Bug 2: Plaintext Password Storage
+
+**Severity:** CRITICAL
+**File:** src/controllers/auth.controller.js
+**Line:** 20
+
+**Root Cause:**
+Registration stores the submitted password exactly as received. If the database is dumped, queried directly, or accessed by an operator, every password is immediately readable.
+
+**Reproduction Steps:**
+1. Send `POST /api/auth/register` with `{ "email": "audit@example.com", "password": "Password123!", "name": "Audit User" }`.
+2. Observe registration succeeds.
+3. Query the `users.password` column directly in PostgreSQL and compare the value. Expected: hashed password. Actual: plaintext password.
+
+**Affected Users / Impact:**
+All registered users are exposed if the DB is accessed directly. This is a full credential disclosure issue and can lead to account takeover on other sites where users reuse passwords.
+
+**Fix Plan:**
+Hash passwords before insert with a strong password hashing algorithm such as bcrypt and compare hashes during login.
+
+## Bug 3: Coupon Redemption Race Condition
+
+**Severity:** HIGH
+**File:** src/controllers/checkout.controller.js
+**Line:** 27
+
+**Root Cause:**
+Coupon validation and coupon redemption are split into separate queries with no transaction or row lock. Concurrent checkouts can both observe `used = false` before either request marks the coupon as used.
+
+**Reproduction Steps:**
+1. Fire two identical `POST /api/cart/checkout` requests at the same time with the same valid `couponCode` such as `ZUDIO100`.
+2. Observe that both requests can pass the coupon validation window under concurrency.
+3. Expected: exactly one successful redemption. Actual: the discount can be applied more than once when requests overlap.
+
+**Affected Users / Impact:**
+This can double-discount or multi-discount the same coupon under load, directly causing revenue loss and inconsistent order state.
+
+**Fix Plan:**
+Redeem the coupon inside a transaction and claim it atomically, for example with a conditional `UPDATE ... WHERE used = false` or row locking.
+
+## Bug 4: Inventory Never Decrements
+
+**Severity:** CRITICAL
+**File:** src/controllers/checkout.controller.js
+**Line:** 55
+
+**Root Cause:**
+The stock update loop is commented out, so successful orders never reduce product inventory. Every checkout leaves the same stock value in the database.
+
+**Reproduction Steps:**
+1. Send a valid `POST /api/cart/checkout` with a real product and bearer token.
+2. Call `GET /api/products` before and after checkout.
+3. Expected: product stock decreases by the purchased quantity. Actual: stock stays unchanged.
+
+**Affected Users / Impact:**
+All purchase flows are affected. Inventory becomes inaccurate immediately, overselling products and breaking downstream fulfillment and reporting.
+
+**Fix Plan:**
+Re-enable the stock update inside the checkout flow and make it part of the same transaction as order creation so inventory, orders, and coupon usage stay consistent.
+
+## Bug 5: N+1 Queries in Order History
+
+**Severity:** MEDIUM
+**File:** src/controllers/order.controller.js
+**Line:** 19
+
+**Root Cause:**
+The history endpoint fetches each order, then each order item, then each product individually. That creates one query per item, so latency grows linearly with history size.
+
+**Reproduction Steps:**
+1. Log in as a seeded user with many orders, for example `aarav.sharma@example.com`.
+2. Send `GET /api/orders/history` with the returned JWT.
+3. Expected: a small, bounded number of queries. Actual: the request took about `8.5s` and logged `106` queries for one seeded account.
+
+**Affected Users / Impact:**
+Users with meaningful order histories will see slow, increasingly unusable account pages. The endpoint gets more expensive as the dataset grows.
+
+**Fix Plan:**
+Load orders, items, and products with joins or batched lookups so the endpoint runs in a constant or near-constant number of queries.
