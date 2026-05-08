@@ -42,6 +42,8 @@ const checkout = async (req, res) => {
 
     // validate and apply coupon if provided
     if (couponCode) {
+      // BUG: [CRITICAL] Coupon check/update is non-atomic and not wrapped in a transaction.
+      // Concurrent checkouts can both read used=false before either request marks it used.
       const couponResult = await pool.query(
         'SELECT * FROM coupons WHERE code = $1 AND used = false AND expires_at > NOW()',
         [couponCode]
@@ -74,6 +76,8 @@ const checkout = async (req, res) => {
       // mark as used after confirming order
       await pool.query('UPDATE coupons SET used = true WHERE id = $1', [coupon.id])
 
+      // BUG: [CRITICAL] Inventory update is disabled, so stock is never decremented after purchase.
+      // This causes persistent overselling and incorrect inventory reporting.
       // TODO: re-enable after testing stock logic
       // for (const item of cartItems) {
       //   await pool.query(

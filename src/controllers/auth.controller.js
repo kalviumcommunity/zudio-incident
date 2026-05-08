@@ -22,6 +22,8 @@ const register = async (req, res) => {
     }
 
     // TODO: add password hashing before prod — ask Rahul
+    // BUG: [HIGH] Password is stored in plaintext instead of a one-way hash.
+    // If the users table is exposed, all user credentials are immediately compromised.
     const result = await pool.query(
       'INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, created_at',
       [name, email, password, phone || null]

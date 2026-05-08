@@ -85,3 +85,108 @@ Profiling source:
 
 - Response times were captured from curl output using `%{time_total}`.
 - Query counts were derived from the wrapped `pool.query` execution paths in the current controller logic.
+
+## Bug 1: SQL Injection in Product Search
+
+**Severity:** CRITICAL
+**File:** src/controllers/product.controller.js
+**Line:** 14
+
+**Root Cause:**
+The search branch builds SQL via string interpolation (`...LIKE '%${req.query.search}%'`) instead of a parameterized query. Untrusted input is treated as executable SQL.
+
+**Reproduction Steps:**
+
+1. Send: `curl -X GET "http://localhost:3000/api/products?search=shirt%27%20OR%20%271%27%3D%271"`
+2. Observe SQL parser behavior and output changes when search payload includes operators/quotes.
+3. Expected vs actual: Expected input to be treated as plain text search term; actual code executes user-supplied SQL syntax path.
+
+**Affected Users / Impact:**
+All users. Attackers can extract unintended data and potentially escalate to data manipulation depending on DB permissions.
+
+**Fix Plan:**
+Use a parameterized statement, e.g. `WHERE name ILIKE $1` with `[%${search}%]`. Add input validation and reject dangerous malformed payloads.
+
+## Bug 2: Plaintext Password Storage
+
+**Severity:** HIGH
+**File:** src/controllers/auth.controller.js
+**Line:** 25
+
+**Root Cause:**
+Registration inserts the raw `password` directly into the `users.password` column, and login compares plaintext strings. No one-way hashing is used.
+
+**Reproduction Steps:**
+
+1. Register: `curl -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d '{"email":"leakcheck@example.com","password":"plain123","name":"Leak Check"}'`
+2. Query DB directly: `SELECT email, password FROM users WHERE email='leakcheck@example.com';`
+3. Expected vs actual: Expected stored value to be a bcrypt/argon hash; actual stored value is readable plaintext.
+
+**Affected Users / Impact:**
+All registered users. Any DB leak immediately exposes reusable credentials and causes account takeover risk across services.
+
+**Fix Plan:**
+Hash with bcrypt/argon2 on register, compare with secure hash verification on login, and force-reset existing plaintext-password accounts.
+
+## Bug 3: Coupon Reuse Race Condition
+
+**Severity:** CRITICAL
+**File:** src/controllers/checkout.controller.js
+**Line:** 45
+
+**Root Cause:**
+Coupon validity check (`used=false`) and coupon update (`used=true`) are separate queries without a transaction/row lock. Concurrent requests can both pass validation before either marks used.
+
+**Reproduction Steps:**
+
+1. Fire two checkout requests in parallel with the same valid coupon (example `ZUDIO100`) and same user/token.
+2. Observe both requests can return success if they race before the update executes.
+3. Expected vs actual: Expected only one request to redeem coupon; actual behavior can apply discount multiple times.
+
+**Affected Users / Impact:**
+Business revenue loss. Any high-traffic or scripted client can exploit concurrent submits to gain repeated discounts.
+
+**Fix Plan:**
+Wrap checkout in a DB transaction and atomically claim coupon (`UPDATE ... WHERE code=$1 AND used=false ... RETURNING *`) before order creation; rollback on failures.
+
+## Bug 4: Inventory Never Decrements After Purchase
+
+**Severity:** CRITICAL
+**File:** src/controllers/checkout.controller.js
+**Line:** 79
+
+**Root Cause:**
+The stock decrement block is commented out, so successful orders never reduce `products.stock`.
+
+**Reproduction Steps:**
+
+1. Capture stock for product 1 via `GET /api/products`.
+2. Place successful checkout with product 1 quantity > 0.
+3. Expected vs actual: Expected stock to decrease by quantity purchased; actual stock remains unchanged.
+
+**Affected Users / Impact:**
+All shoppers and operations teams. Inventory accuracy is broken on every purchase, causing overselling and fulfillment failures.
+
+**Fix Plan:**
+Re-enable stock update inside the same checkout transaction and guard against negative stock with conditional update / row lock.
+
+## Bug 5: N+1 Query Pattern in Order History
+
+**Severity:** MEDIUM
+**File:** src/controllers/order.controller.js
+**Line:** 27
+
+**Root Cause:**
+Order history fetches orders, then queries order_items per order, then product details per item. This creates N+1 (+M) queries and scales linearly with data size.
+
+**Reproduction Steps:**
+
+1. Generate users with many orders/items, then call `curl -X GET http://localhost:3000/api/orders/history -H "Authorization: Bearer <TOKEN>"`.
+2. Observe query count and latency rise as order/item volume grows.
+3. Expected vs actual: Expected bounded query count; actual query count increases with each order and item.
+
+**Affected Users / Impact:**
+Active buyers with large order histories. Endpoint gets progressively slower and can become unusable under load.
+
+**Fix Plan:**
+Replace iterative lookups with joined/batched queries (orders + items + products), then map rows to response objects in memory.
