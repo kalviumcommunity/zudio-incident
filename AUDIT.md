@@ -203,3 +203,27 @@ Notes:
 - Before values were captured in earlier profiling from Step 3.
 - After values were captured against the patched server on port 3001 (`[PROFILE] GET /history -> 40ms | 1 queries`).
 - The query-count fix is deterministic and removes linear DB round trips as history size grows; single-run latency can vary by environment.
+
+## Step 6 Verification — Remove BUG Comments and Verify All Endpoints
+
+All `// BUG:` comments have been removed from source code (they were replaced with fixes during Rounds 1–3).
+
+### Verification Table
+
+| Bug                 | Before                 | After                              | Verification Method                                     | Status   |
+| ------------------- | ---------------------- | ---------------------------------- | ------------------------------------------------------- | -------- |
+| SQL Injection       | Returns matched rows   | Returns 0 results (literal string) | GET /api/products?search=shirt%27%20OR%20%271%27%3D%271 |  FIXED |
+| Plaintext Passwords | Password: `test123`    | Password: `$2b$12$...` (bcrypt)    | SELECT password FROM users (new registrations)          |  FIXED |
+| Double Discount     | Coupon applied N times | 400 error on 2nd attempt           | POST /api/cart/checkout × 2 same coupon                 | FIXED    |
+| Stock Decrement     | Stock: 243 → 243       | Stock: 243 → 241                   | GET /api/products before/after checkout                 | FIXED    |
+| N+1 Order History   | 201 queries            | 1 query                            | Profiling middleware output                             | FIXED    |
+
+### Verification Details
+
+1. **SQL Injection**: Parameterized query using `ILIKE $1` prevents injection. Tested with `shirt' OR '1'='1` returns 0 results (literal string match).
+2. **Plaintext Passwords**: bcrypt hashing applied in `register()` with 12 salt rounds. New users are hashed before DB insert. Existing seeded users retain plaintext (backward compatible).
+3. **Double Discount**: Atomic `UPDATE ... WHERE used=false ... RETURNING *` in transaction prevents concurrent reuse. Second attempt returns 400 error.
+4. **Stock Decrement**: Enabled inside checkout transaction with `AND stock >= quantity` guard. Rolls back if stock insufficient.
+5. **N+1 Query**: Single `LEFT JOIN` query replaces nested loops. Order history now 1 query instead of 1+N+M.
+
+All fixes committed and BUG comments removed per Step 6 requirements.
