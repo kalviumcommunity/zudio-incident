@@ -16,3 +16,14 @@ pool.on('error', (err) => {
 })
 
 module.exports = pool
+
+// Wrap pool.query to count queries
+const originalQuery = pool.query.bind(pool)
+
+pool.query = (text, params) => {
+  if (global.currentRequest) {
+    global.currentRequest._queryCount++
+  }
+
+  return originalQuery(text, params)
+}
