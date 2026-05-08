@@ -11,10 +11,7 @@ const getProducts = async (req, res) => {
 
     if (search) {
       // search by name
-
-      // BUG: [CRITICAL] SQL injection vulnerability — user input is directly concatenated into SQL query strings.
-      // Attackers can inject malicious SQL payloads to bypass filters or manipulate the database.
-
+      
       const query =
         'SELECT * FROM products WHERE name ILIKE $1 LIMIT $2 OFFSET $3'
 

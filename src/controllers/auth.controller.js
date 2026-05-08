@@ -23,9 +23,6 @@ const register = async (req, res) => {
 
     // TODO: add password hashing before prod — ask Rahul
 
-    // BUG: [HIGH] Plaintext password storage — user passwords are stored directly without hashing.
-    // If the database is leaked, attackers can immediately access all user credentials.
-
     const hashedPassword = await bcrypt.hash(password, 12)
 
     const result = await pool.query(

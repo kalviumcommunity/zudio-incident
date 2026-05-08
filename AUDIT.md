@@ -124,3 +124,13 @@ Users with large order histories experience slow page loads and degraded perform
 
 **Fix Plan:**  
 Replace nested queries with JOIN-based queries or batch-fetch related data.
+
+# Verification Table
+
+| Bug | Before | After | Verification Method |
+|-----|--------|-------|---------------------|
+| SQL Injection | Search input returned all products using injected SQL | Input treated as literal string and returns valid filtered results only | GET /api/products?search=shirt' OR '1'='1 |
+| Plaintext Passwords | Passwords stored directly as plain text | Passwords stored securely using bcrypt hashing | SELECT password FROM users |
+| Double Discount | Same coupon could be reused in concurrent requests | Coupon becomes unavailable immediately after first successful use | POST /api/cart/checkout using same coupon twice |
+| Stock Decrement | Product stock remained unchanged after checkout | Stock decreases correctly after successful order placement | Compare product stock before and after checkout |
+| N+1 Order History | Multiple queries executed inside loops causing slow responses | Single JOIN query fetches complete order history efficiently | Profiling middleware output for GET /api/orders/history |
