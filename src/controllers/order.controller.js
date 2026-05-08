@@ -14,6 +14,10 @@ const getOrderHistory = async (req, res) => {
     const orders = ordersResult.rows
 
     // now we need to get the items for each order
+
+    // BUG: [MEDIUM] N+1 query performance issue — additional database queries are executed inside nested loops.
+    // Response time increases linearly with order and item count, causing severe slowdown at scale.
+
     for (const order of orders) {
       const itemsResult = await pool.query(
         'SELECT * FROM order_items WHERE order_id = $1',

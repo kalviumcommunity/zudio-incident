@@ -42,6 +42,10 @@ const checkout = async (req, res) => {
 
     // validate and apply coupon if provided
     if (couponCode) {
+
+      // BUG: [HIGH] Coupon reuse race condition — coupon validation and coupon usage update are separated.
+      // Multiple simultaneous requests can redeem the same coupon before it is marked as used.
+      
       const couponResult = await pool.query(
         'SELECT * FROM coupons WHERE code = $1 AND used = false AND expires_at > NOW()',
         [couponCode]
@@ -73,6 +77,9 @@ const checkout = async (req, res) => {
 
       // mark as used after confirming order
       await pool.query('UPDATE coupons SET used = true WHERE id = $1', [coupon.id])
+
+      // BUG: [CRITICAL] Inventory stock is never decremented after successful checkout.
+     // Orders complete successfully while product stock remains unchanged, causing overselling.
 
       // TODO: re-enable after testing stock logic
       // for (const item of cartItems) {

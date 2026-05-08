@@ -15,3 +15,112 @@
 - Product-related endpoints currently execute efficiently with one database query.
 - Authentication-protected routes show low response times.
 - Checkout validation stops invalid requests before unnecessary database operations occur.
+
+## Bug 1: SQL Injection in Product Search
+
+**Severity:** CRITICAL  
+**File:** src/controllers/product.controller.js  
+**Line:** Approx. line 15  
+
+**Root Cause:**  
+User-controlled input is directly concatenated into the SQL query string instead of using parameterized queries.
+
+**Reproduction Steps:**  
+1. Send GET request:
+   `/api/products?search=shirt' OR '1'='1`
+2. Observe all products are returned.
+3. Expected: filtered results only. Actual: query bypassed.
+
+**Affected Users / Impact:**  
+All users are affected. Attackers may read or manipulate database contents through crafted SQL payloads.
+
+**Fix Plan:**  
+Replace string concatenation with parameterized prepared statements using query placeholders.
+
+---
+
+## Bug 2: Plaintext Password Storage
+
+**Severity:** HIGH  
+**File:** src/controllers/auth.controller.js  
+**Line:** Approx. line 25  
+
+**Root Cause:**  
+Passwords are stored directly in the database without hashing or salting.
+
+**Reproduction Steps:**  
+1. Register a new user.
+2. Inspect database user table.
+3. Observe raw password stored directly.
+
+**Affected Users / Impact:**  
+All registered users are at risk if database access is compromised.
+
+**Fix Plan:**  
+Use bcrypt hashing before storing passwords and compare hashes during login.
+
+---
+
+## Bug 3: Coupon Reuse Race Condition
+
+**Severity:** HIGH  
+**File:** src/controllers/checkout.controller.js  
+**Line:** Approx. line 40  
+
+**Root Cause:**  
+Coupon validation and coupon usage update happen in separate database operations without transactional locking.
+
+**Reproduction Steps:**  
+1. Send multiple checkout requests simultaneously using the same coupon.
+2. Observe coupon accepted multiple times.
+3. Expected: coupon usable once only. Actual: multiple successful redemptions.
+
+**Affected Users / Impact:**  
+Causes revenue loss and inconsistent order pricing during concurrent traffic.
+
+**Fix Plan:**  
+Use transactional locking or atomic update queries to validate and consume coupons safely.
+
+---
+
+## Bug 4: Inventory Stock Not Updated
+
+**Severity:** CRITICAL  
+**File:** src/controllers/checkout.controller.js  
+**Line:** Approx. line 70 and 105  
+
+**Root Cause:**  
+Inventory update queries are commented out, so stock levels never decrease after purchases.
+
+**Reproduction Steps:**  
+1. Complete checkout successfully.
+2. Check product inventory values.
+3. Observe stock remains unchanged.
+
+**Affected Users / Impact:**  
+Products can be oversold indefinitely, causing severe inventory inconsistencies.
+
+**Fix Plan:**  
+Re-enable stock decrement queries and wrap checkout logic inside a transaction.
+
+---
+
+## Bug 5: N+1 Query Performance Issue
+
+**Severity:** MEDIUM  
+**File:** src/controllers/order.controller.js  
+**Line:** Approx. line 15  
+
+**Root Cause:**  
+Additional database queries are executed inside nested loops instead of batching related data retrieval.
+
+**Reproduction Steps:**  
+1. Request order history for a user with many orders.
+2. Observe query count and response time increase rapidly.
+3. Expected: efficient batched queries. Actual: repeated database hits per item.
+
+**Affected Users / Impact:**  
+Users with large order histories experience slow page loads and degraded performance.
+
+**Fix Plan:**  
+Replace nested queries with JOIN-based queries or batch-fetch related data.
