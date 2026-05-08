@@ -114,7 +114,7 @@ Load orders, items, and products with joins or batched lookups so the endpoint r
 ✅ **Stock Never Decrements** - Re-enabled stock update with `AND stock >= quantity` guard in checkout transaction
 ✅ **Verification:** Coupon reuse rejected, stock confirmed decreasing post-purchase
 
-### Round 3: Performance Fixes (Commit pending)
+### Round 3: Performance Fixes (Commit 90537aa)
 ✅ **N+1 Query in Order History** - Replaced loop with single JOIN query combining orders, order_items, and products
 
 **Performance Metrics (Aarav Sharma - 9 orders):**
@@ -125,3 +125,22 @@ Load orders, items, and products with joins or batched lookups so the endpoint r
 **Schema Optimizations:**
 - Added `CREATE INDEX idx_orders_user_id_created_at ON orders(user_id, created_at DESC)`
 - Added `CREATE INDEX idx_order_items_order_id ON order_items(order_id)`
+
+---
+
+## Verification Results
+
+| Bug | Before | After | Verification Method | Status |
+|-----|--------|-------|---------------------|--------|
+| **SQL Injection** | Returns all products matching `OR '1'='1` | Returns 0 results (literal string match) | `GET /api/products?search=shirt' OR '1'='1` → Result count: 0 | ✅ FIXED |
+| **Plaintext Passwords** | `password: "mypassword"` | `password: "$2b$12$..."` | Database query for user password hash | ✅ FIXED |
+| **Double Discount** | Coupon applied on 2nd concurrent request | 2nd request rejected with 400 error | `POST /api/cart/checkout` ×2 same coupon | ✅ FIXED |
+| **Stock Decrement** | Stock unchanged after purchase | Stock reduced by quantity | Pre/post checkout query on product | ✅ FIXED |
+| **N+1 Order History** | 106 queries / 8.5s latency | 1 query / 175ms latency | Profiling middleware: `GET /api/orders/history` | ✅ FIXED |
+
+**Verification Evidence:**
+- SQL Injection test returned count: `0` (safe)
+- Seed data confirms all users have bcrypt hashes: `$2b$12$...` format
+- Checkout transaction includes atomic coupon update: `UPDATE ... WHERE used = false ... RETURNING`
+- Stock decrement enabled in transaction: `UPDATE products SET stock = stock - $1 WHERE id = $2`
+- Performance profiling shows: `[PROFILE] GET /history → 175ms | 1 queries`
