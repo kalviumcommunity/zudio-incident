@@ -11,6 +11,16 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 })
 
+const originalQuery = pool.query.bind(pool)
+
+pool.query = (text, params) => {
+  if (global.currentRequest) {
+    global.currentRequest._queryCount += 1
+  }
+
+  return originalQuery(text, params)
+}
+
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err)
 })

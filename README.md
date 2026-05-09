@@ -95,7 +95,7 @@ zudio-backend/
 
 ## ⚠️ Known Issues
 
-- 🔍 Search sometimes returns unexpected results depending on the query string passed.
+- None documented after the Part A fixes.
 
 ---
 

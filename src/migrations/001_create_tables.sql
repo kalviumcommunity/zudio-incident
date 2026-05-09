@@ -2,6 +2,8 @@
 -- Migration: 001_create_tables
 -- Zudio e-commerce schema
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- clean up if re-running (handy during dev)
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -53,6 +55,7 @@ CREATE TABLE products (
   created_at  TIMESTAMP DEFAULT NOW()
 );
 -- intentionally no index on products.category_id
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
 
 -- ------------------------------------------------------------
 -- orders
@@ -70,6 +73,7 @@ CREATE TABLE orders (
   updated_at       TIMESTAMP DEFAULT NOW()
 );
 -- intentionally no index on orders.user_id
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 
 -- ------------------------------------------------------------
 -- order_items
@@ -89,6 +93,7 @@ CREATE TABLE order_items (
   created_at    TIMESTAMP DEFAULT NOW()
 );
 -- intentionally no index on order_items.order_id
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 
 -- ------------------------------------------------------------
 -- coupons
