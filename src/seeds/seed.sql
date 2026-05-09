@@ -214,56 +214,56 @@ INSERT INTO products (name, description, price, stock, category_id, image_url) V
 
 -- Users (50 — passwords stored plaintext, intentional bug)
 INSERT INTO users (name, email, password, phone, role) VALUES
-  ('Aarav Sharma', 'aarav.sharma@example.com', 'aarav1000', '9800000000', 'customer'),
-  ('Priya Patel', 'priya.patel@example.com', 'priya1001', '9800007919', 'customer'),
-  ('Rohan Mehta', 'rohan.mehta@example.com', 'rohan1002', '9800015838', 'customer'),
-  ('Sneha Gupta', 'sneha.gupta@example.com', 'sneha1003', '9800023757', 'customer'),
-  ('Vikram Nair', 'vikram.nair@example.com', 'vikram1004', '9800031676', 'customer'),
-  ('Ananya Iyer', 'ananya.iyer@example.com', 'ananya1005', '9800039595', 'customer'),
-  ('Karan Joshi', 'karan.joshi@example.com', 'karan1006', '9800047514', 'customer'),
-  ('Pooja Singh', 'pooja.singh@example.com', 'pooja1007', '9800055433', 'customer'),
-  ('Arjun Reddy', 'arjun.reddy@example.com', 'arjun1008', '9800063352', 'customer'),
-  ('Divya Pillai', 'divya.pillai@example.com', 'divya1009', '9800071271', 'customer'),
-  ('Rahul Verma', 'rahul.verma@example.com', 'rahul1010', '9800079190', 'customer'),
-  ('Kavya Krishnan', 'kavya.krishnan@example.com', 'kavya1011', '9800087109', 'customer'),
-  ('Aditya Kumar', 'aditya.kumar@example.com', 'aditya1012', '9800095028', 'customer'),
-  ('Deepika Bose', 'deepika.bose@example.com', 'deepika1013', '9800102947', 'customer'),
-  ('Nikhil Malhotra', 'nikhil.malhotra@example.com', 'nikhil1014', '9800110866', 'customer'),
-  ('Shreya Desai', 'shreya.desai@example.com', 'shreya1015', '9800118785', 'customer'),
-  ('Amit Chauhan', 'amit.chauhan@example.com', 'amit1016', '9800126704', 'customer'),
-  ('Ishaan Kapoor', 'ishaan.kapoor@example.com', 'ishaan1017', '9800134623', 'customer'),
-  ('Riya Chatterjee', 'riya.chatterjee@example.com', 'riya1018', '9800142542', 'customer'),
-  ('Siddharth Rao', 'siddharth.rao@example.com', 'siddharth1019', '9800150461', 'customer'),
-  ('Meera Nambiar', 'meera.nambiar@example.com', 'meera1020', '9800158380', 'customer'),
-  ('Farhan Qureshi', 'farhan.qureshi@example.com', 'farhan1021', '9800166299', 'customer'),
-  ('Tanvi Shah', 'tanvi.shah@example.com', 'tanvi1022', '9800174218', 'customer'),
-  ('Harsh Srivastava', 'harsh.srivastava@example.com', 'harsh1023', '9800182137', 'customer'),
-  ('Nidhi Agarwal', 'nidhi.agarwal@example.com', 'nidhi1024', '9800190056', 'customer'),
-  ('Vivek Pandey', 'vivek.pandey@example.com', 'vivek1025', '9800197975', 'customer'),
-  ('Swathi Menon', 'swathi.menon@example.com', 'swathi1026', '9800205894', 'customer'),
-  ('Akash Yadav', 'akash.yadav@example.com', 'akash1027', '9800213813', 'customer'),
-  ('Simran Kaur', 'simran.kaur@example.com', 'simran1028', '9800221732', 'customer'),
-  ('Gaurav Tiwari', 'gaurav.tiwari@example.com', 'gaurav1029', '9800229651', 'customer'),
-  ('Pallavi Dubey', 'pallavi.dubey@example.com', 'pallavi1030', '9800237570', 'customer'),
-  ('Tarun Banerjee', 'tarun.banerjee@example.com', 'tarun1031', '9800245489', 'customer'),
-  ('Madhuri Naidu', 'madhuri.naidu@example.com', 'madhuri1032', '9800253408', 'customer'),
-  ('Lokesh Mishra', 'lokesh.mishra@example.com', 'lokesh1033', '9800261327', 'customer'),
-  ('Asha Venkatesh', 'asha.venkatesh@example.com', 'asha1034', '9800269246', 'customer'),
-  ('Chirag Bhatt', 'chirag.bhatt@example.com', 'chirag1035', '9800277165', 'customer'),
-  ('Jyoti Saxena', 'jyoti.saxena@example.com', 'jyoti1036', '9800285084', 'customer'),
-  ('Pankaj Rastogi', 'pankaj.rastogi@example.com', 'pankaj1037', '9800293003', 'customer'),
-  ('Kritika Singhania', 'kritika.singhania@example.com', 'kritika1038', '9800300922', 'customer'),
-  ('Bhavesh Naik', 'bhavesh.naik@example.com', 'bhavesh1039', '9800308841', 'customer'),
-  ('Sakshi Tripathi', 'sakshi.tripathi@example.com', 'sakshi1040', '9800316760', 'customer'),
-  ('Yash Kothari', 'yash.kothari@example.com', 'yash1041', '9800324679', 'customer'),
-  ('Naina Bhatia', 'naina.bhatia@example.com', 'naina1042', '9800332598', 'customer'),
-  ('Alok Garg', 'alok.garg@example.com', 'alok1043', '9800340517', 'customer'),
-  ('Radhika Suresh', 'radhika.suresh@example.com', 'radhika1044', '9800348436', 'customer'),
-  ('Manish Lal', 'manish.lal@example.com', 'manish1045', '9800356355', 'customer'),
-  ('Chandani Parekh', 'chandani.parekh@example.com', 'chandani1046', '9800364274', 'customer'),
-  ('Suraj Patil', 'suraj.patil@example.com', 'suraj1047', '9800372193', 'customer'),
-  ('Leena Hegde', 'leena.hegde@example.com', 'leena1048', '9800380112', 'admin'),
-  ('Devika Mohan', 'devika.mohan@example.com', 'devika1049', '9800388031', 'customer');
+  ('Aarav Sharma', 'aarav.sharma@example.com', crypt('aarav1000', gen_salt('bf')), '9800000000', 'customer'),
+  ('Priya Patel', 'priya.patel@example.com', crypt('priya1001', gen_salt('bf')), '9800007919', 'customer'),
+  ('Rohan Mehta', 'rohan.mehta@example.com', crypt('rohan1002', gen_salt('bf')), '9800015838', 'customer'),
+  ('Sneha Gupta', 'sneha.gupta@example.com', crypt('sneha1003', gen_salt('bf')), '9800023757', 'customer'),
+  ('Vikram Nair', 'vikram.nair@example.com', crypt('vikram1004', gen_salt('bf')), '9800031676', 'customer'),
+  ('Ananya Iyer', 'ananya.iyer@example.com', crypt('ananya1005', gen_salt('bf')), '9800039595', 'customer'),
+  ('Karan Joshi', 'karan.joshi@example.com', crypt('karan1006', gen_salt('bf')), '9800047514', 'customer'),
+  ('Pooja Singh', 'pooja.singh@example.com', crypt('pooja1007', gen_salt('bf')), '9800055433', 'customer'),
+  ('Arjun Reddy', 'arjun.reddy@example.com', crypt('arjun1008', gen_salt('bf')), '9800063352', 'customer'),
+  ('Divya Pillai', 'divya.pillai@example.com', crypt('divya1009', gen_salt('bf')), '9800071271', 'customer'),
+  ('Rahul Verma', 'rahul.verma@example.com', crypt('rahul1010', gen_salt('bf')), '9800079190', 'customer'),
+  ('Kavya Krishnan', 'kavya.krishnan@example.com', crypt('kavya1011', gen_salt('bf')), '9800087109', 'customer'),
+  ('Aditya Kumar', 'aditya.kumar@example.com', crypt('aditya1012', gen_salt('bf')), '9800095028', 'customer'),
+  ('Deepika Bose', 'deepika.bose@example.com', crypt('deepika1013', gen_salt('bf')), '9800102947', 'customer'),
+  ('Nikhil Malhotra', 'nikhil.malhotra@example.com', crypt('nikhil1014', gen_salt('bf')), '9800110866', 'customer'),
+  ('Shreya Desai', 'shreya.desai@example.com', crypt('shreya1015', gen_salt('bf')), '9800118785', 'customer'),
+  ('Amit Chauhan', 'amit.chauhan@example.com', crypt('amit1016', gen_salt('bf')), '9800126704', 'customer'),
+  ('Ishaan Kapoor', 'ishaan.kapoor@example.com', crypt('ishaan1017', gen_salt('bf')), '9800134623', 'customer'),
+  ('Riya Chatterjee', 'riya.chatterjee@example.com', crypt('riya1018', gen_salt('bf')), '9800142542', 'customer'),
+  ('Siddharth Rao', 'siddharth.rao@example.com', crypt('siddharth1019', gen_salt('bf')), '9800150461', 'customer'),
+  ('Meera Nambiar', 'meera.nambiar@example.com', crypt('meera1020', gen_salt('bf')), '9800158380', 'customer'),
+  ('Farhan Qureshi', 'farhan.qureshi@example.com', crypt('farhan1021', gen_salt('bf')), '9800166299', 'customer'),
+  ('Tanvi Shah', 'tanvi.shah@example.com', crypt('tanvi1022', gen_salt('bf')), '9800174218', 'customer'),
+  ('Harsh Srivastava', 'harsh.srivastava@example.com', crypt('harsh1023', gen_salt('bf')), '9800182137', 'customer'),
+  ('Nidhi Agarwal', 'nidhi.agarwal@example.com', crypt('nidhi1024', gen_salt('bf')), '9800190056', 'customer'),
+  ('Vivek Pandey', 'vivek.pandey@example.com', crypt('vivek1025', gen_salt('bf')), '9800197975', 'customer'),
+  ('Swathi Menon', 'swathi.menon@example.com', crypt('swathi1026', gen_salt('bf')), '9800205894', 'customer'),
+  ('Akash Yadav', 'akash.yadav@example.com', crypt('akash1027', gen_salt('bf')), '9800213813', 'customer'),
+  ('Simran Kaur', 'simran.kaur@example.com', crypt('simran1028', gen_salt('bf')), '9800221732', 'customer'),
+  ('Gaurav Tiwari', 'gaurav.tiwari@example.com', crypt('gaurav1029', gen_salt('bf')), '9800229651', 'customer'),
+  ('Pallavi Dubey', 'pallavi.dubey@example.com', crypt('pallavi1030', gen_salt('bf')), '9800237570', 'customer'),
+  ('Tarun Banerjee', 'tarun.banerjee@example.com', crypt('tarun1031', gen_salt('bf')), '9800245489', 'customer'),
+  ('Madhuri Naidu', 'madhuri.naidu@example.com', crypt('madhuri1032', gen_salt('bf')), '9800253408', 'customer'),
+  ('Lokesh Mishra', 'lokesh.mishra@example.com', crypt('lokesh1033', gen_salt('bf')), '9800261327', 'customer'),
+  ('Asha Venkatesh', 'asha.venkatesh@example.com', crypt('asha1034', gen_salt('bf')), '9800269246', 'customer'),
+  ('Chirag Bhatt', 'chirag.bhatt@example.com', crypt('chirag1035', gen_salt('bf')), '9800277165', 'customer'),
+  ('Jyoti Saxena', 'jyoti.saxena@example.com', crypt('jyoti1036', gen_salt('bf')), '9800285084', 'customer'),
+  ('Pankaj Rastogi', 'pankaj.rastogi@example.com', crypt('pankaj1037', gen_salt('bf')), '9800293003', 'customer'),
+  ('Kritika Singhania', 'kritika.singhania@example.com', crypt('kritika1038', gen_salt('bf')), '9800300922', 'customer'),
+  ('Bhavesh Naik', 'bhavesh.naik@example.com', crypt('bhavesh1039', gen_salt('bf')), '9800308841', 'customer'),
+  ('Sakshi Tripathi', 'sakshi.tripathi@example.com', crypt('sakshi1040', gen_salt('bf')), '9800316760', 'customer'),
+  ('Yash Kothari', 'yash.kothari@example.com', crypt('yash1041', gen_salt('bf')), '9800324679', 'customer'),
+  ('Naina Bhatia', 'naina.bhatia@example.com', crypt('naina1042', gen_salt('bf')), '9800332598', 'customer'),
+  ('Alok Garg', 'alok.garg@example.com', crypt('alok1043', gen_salt('bf')), '9800340517', 'customer'),
+  ('Radhika Suresh', 'radhika.suresh@example.com', crypt('radhika1044', gen_salt('bf')), '9800348436', 'customer'),
+  ('Manish Lal', 'manish.lal@example.com', crypt('manish1045', gen_salt('bf')), '9800356355', 'customer'),
+  ('Chandani Parekh', 'chandani.parekh@example.com', crypt('chandani1046', gen_salt('bf')), '9800364274', 'customer'),
+  ('Suraj Patil', 'suraj.patil@example.com', crypt('suraj1047', gen_salt('bf')), '9800372193', 'customer'),
+  ('Leena Hegde', 'leena.hegde@example.com', crypt('leena1048', gen_salt('bf')), '9800380112', 'admin'),
+  ('Devika Mohan', 'devika.mohan@example.com', crypt('devika1049', gen_salt('bf')), '9800388031', 'customer');
 
 -- Coupons (20)
 INSERT INTO coupons (code, discount_amount, used, expires_at) VALUES
@@ -299,7 +299,6 @@ DECLARE
   prod_id    INT;
   qty        INT;
   uprice     NUMERIC(10,2);
-  pname      VARCHAR;
   total      NUMERIC(10,2);
   statuses   TEXT[] := ARRAY['pending','confirmed','shipped','delivered','delivered','delivered'];
   addresses  TEXT[] := ARRAY[
@@ -337,10 +336,10 @@ BEGIN
         prod_id := (seed * 31 + uid * 7 + i * 13) % 200 + 1;
         qty     := 1 + (seed + i) % 3;
 
-        SELECT price, name INTO uprice, pname FROM products WHERE id = prod_id;
+        SELECT price INTO uprice FROM products WHERE id = prod_id;
 
-        INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price)
-        VALUES (ord_id, prod_id, pname, uprice, qty, uprice);
+        INSERT INTO order_items (order_id, product_id, unit_price_at_purchase, quantity)
+        VALUES (ord_id, prod_id, uprice, qty);
 
         total := total + uprice * qty;
       END LOOP;

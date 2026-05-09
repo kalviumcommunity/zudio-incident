@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
 const pool = require('../db')
+const { sendError } = require('../utils/api-response')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-123'
 
@@ -7,7 +8,7 @@ const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' })
+    return sendError(res, 401, 'AUTH_TOKEN_MISSING', 'No token provided')
   }
 
   const token = authHeader.split(' ')[1]
@@ -17,7 +18,7 @@ const verifyToken = (req, res, next) => {
     req.user = decoded
     next()
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' })
+    return sendError(res, 401, 'AUTH_TOKEN_INVALID', 'Invalid or expired token')
   }
 }
 
@@ -31,17 +32,17 @@ const verifyAdmin = async (req, res, next) => {
     )
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'User not found' })
+      return sendError(res, 401, 'AUTH_USER_NOT_FOUND', 'User not found')
     }
 
     if (result.rows[0].role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' })
+      return sendError(res, 403, 'AUTH_FORBIDDEN', 'Admin access required')
     }
 
     next()
   } catch (err) {
     console.error('verifyAdmin error:', err.message)
-    res.status(500).json({ error: 'Authorization check failed' })
+    return sendError(res, 500, 'AUTH_CHECK_FAILED', 'Authorization check failed')
   }
 }
 
