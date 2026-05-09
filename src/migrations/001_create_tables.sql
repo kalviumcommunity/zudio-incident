@@ -24,87 +24,77 @@ CREATE TABLE categories (
 
 -- ------------------------------------------------------------
 -- users
--- note: role has no CHECK constraint — any string works
---       password stored as text (hashing TODO)
+-- role is constrained to customer/admin
+-- password is hashed before insert
 -- ------------------------------------------------------------
 CREATE TABLE users (
   id         SERIAL PRIMARY KEY,
-  name       VARCHAR(255),
+  name       VARCHAR(255) NOT NULL,
   email      VARCHAR(255) UNIQUE NOT NULL,
-  password   TEXT,
+  password   TEXT NOT NULL,
   phone      VARCHAR(20),
-  role       VARCHAR(20) DEFAULT 'customer',
-  created_at TIMESTAMP DEFAULT NOW()
+  role       VARCHAR(20) NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 -- no index on email beyond the unique constraint (unique already creates one)
--- role column has no CHECK ('admin', 'customer', anything goes)
 
 -- ------------------------------------------------------------
 -- products
--- stock has no CHECK so it can go negative (relevant after stock-decrement bug fix)
--- no index on category_id — full scan when browsing by category
+-- category_id now has a supporting index for catalog browsing
 -- ------------------------------------------------------------
 CREATE TABLE products (
   id          SERIAL PRIMARY KEY,
-  name        VARCHAR(255),
-  description TEXT,
-  price       NUMERIC(10, 2),
-  stock       INTEGER DEFAULT 0,
-  category_id INTEGER REFERENCES categories(id),
-  image_url   TEXT,
-  created_at  TIMESTAMP DEFAULT NOW()
+  name        VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  price       NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+  stock       INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+  image_url   TEXT NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
--- intentionally no index on products.category_id
-CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_category_created_at ON products(category_id, created_at DESC);
 
 -- ------------------------------------------------------------
 -- orders
--- user_id has no NOT NULL — orphaned orders are possible
--- no index on user_id — full table scan every time a user checks history
+-- user_id is required and indexed to support order history lookups
 -- ------------------------------------------------------------
 CREATE TABLE orders (
   id               SERIAL PRIMARY KEY,
-  user_id          INTEGER REFERENCES users(id),
-  total_amount     NUMERIC(10, 2),
-  discount         NUMERIC(10, 2) DEFAULT 0,
-  shipping_address TEXT,
-  status           VARCHAR(50) DEFAULT 'pending',
-  created_at       TIMESTAMP DEFAULT NOW(),
-  updated_at       TIMESTAMP DEFAULT NOW()
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  total_amount     NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
+  discount         NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (discount >= 0),
+  shipping_address TEXT NOT NULL,
+  status           VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
+  created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
 );
--- intentionally no index on orders.user_id
-CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user_created_at_id ON orders(user_id, created_at DESC, id DESC);
 
 -- ------------------------------------------------------------
 -- order_items
--- denormalised: stores product_name and product_price alongside product_id
--- this means price history is embedded in the row rather than computed from products
--- quantity has no CHECK constraint — negative values are allowed
--- no index on order_id — full table scan per order in the N+1 query
+-- 3NF: product metadata stays in products, purchase price is captured once
+-- quantity and price are constrained to valid positive values
 -- ------------------------------------------------------------
 CREATE TABLE order_items (
   id            SERIAL PRIMARY KEY,
-  order_id      INTEGER REFERENCES orders(id),
-  product_id    INTEGER REFERENCES products(id),
-  product_name  VARCHAR(255),
-  product_price NUMERIC(10, 2),
-  quantity      INTEGER,
-  unit_price    NUMERIC(10, 2),
-  created_at    TIMESTAMP DEFAULT NOW()
+  order_id      INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id    INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+  unit_price_at_purchase NUMERIC(10, 2) NOT NULL CHECK (unit_price_at_purchase >= 0),
+  quantity      INTEGER NOT NULL CHECK (quantity > 0),
+  created_at    TIMESTAMP NOT NULL DEFAULT NOW()
 );
--- intentionally no index on order_items.order_id
-CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id_created_at ON order_items(order_id, created_at ASC, id ASC);
 
 -- ------------------------------------------------------------
 -- coupons
 -- single-use coupons, no per-user limit
--- used flag is non-atomic (race condition possible — see checkout controller)
+-- used flag is locked atomically during checkout
 -- ------------------------------------------------------------
 CREATE TABLE coupons (
   id              SERIAL PRIMARY KEY,
   code            VARCHAR(50) UNIQUE NOT NULL,
-  discount_amount NUMERIC(10, 2),
-  used            BOOLEAN DEFAULT false,
-  expires_at      TIMESTAMP,
-  created_at      TIMESTAMP DEFAULT NOW()
+  discount_amount NUMERIC(10, 2) NOT NULL CHECK (discount_amount >= 0),
+  used            BOOLEAN NOT NULL DEFAULT false,
+  expires_at      TIMESTAMP NOT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );

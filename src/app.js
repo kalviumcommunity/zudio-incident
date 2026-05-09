@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const dotenv = require('dotenv')
+const { sendError } = require('./utils/api-response')
 
 dotenv.config()
 
@@ -39,18 +40,18 @@ app.use('/api/orders', orderRoutes)
 app.use('/api/cart', cartRoutes)
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() })
 })
 
 // catch-all for 404s
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' })
+  return sendError(res, 404, 'NOT_FOUND', 'Route not found')
 })
 
 // basic error handler
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ error: 'Something went wrong' })
+  return sendError(res, 500, 'INTERNAL_SERVER_ERROR', 'Something went wrong')
 })
 
 module.exports = app

@@ -299,7 +299,6 @@ DECLARE
   prod_id    INT;
   qty        INT;
   uprice     NUMERIC(10,2);
-  pname      VARCHAR;
   total      NUMERIC(10,2);
   statuses   TEXT[] := ARRAY['pending','confirmed','shipped','delivered','delivered','delivered'];
   addresses  TEXT[] := ARRAY[
@@ -337,10 +336,10 @@ BEGIN
         prod_id := (seed * 31 + uid * 7 + i * 13) % 200 + 1;
         qty     := 1 + (seed + i) % 3;
 
-        SELECT price, name INTO uprice, pname FROM products WHERE id = prod_id;
+        SELECT price INTO uprice FROM products WHERE id = prod_id;
 
-        INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price)
-        VALUES (ord_id, prod_id, pname, uprice, qty, uprice);
+        INSERT INTO order_items (order_id, product_id, unit_price_at_purchase, quantity)
+        VALUES (ord_id, prod_id, uprice, qty);
 
         total := total + uprice * qty;
       END LOOP;

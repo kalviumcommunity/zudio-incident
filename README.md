@@ -69,6 +69,12 @@ zudio-backend/
 
 ---
 
+## 🏗 Part B Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the current architecture diagram, the scaled architecture, the normalized schema, the REST contracts, and the optimization benchmark format.
+
+---
+
 ## 🧰 Tech Stack
 
 | Layer | Technology |

@@ -1,11 +1,12 @@
 const pool = require('../db')
+const { sendError, sendSuccess } = require('../utils/api-response')
 
 const checkout = async (req, res) => {
   const client = await pool.connect()
 
   const rollbackAndRespond = async (statusCode, payload) => {
     await client.query('ROLLBACK')
-    return res.status(statusCode).json(payload)
+    return sendError(res, statusCode, payload.error.code, payload.error.message, payload.error.details)
   }
 
   try {
@@ -14,42 +15,64 @@ const checkout = async (req, res) => {
 
     // items should be an array of { productId, quantity }
     if (!items || items.length === 0) {
-      return res.status(400).json({ error: 'Cart is empty' })
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Cart is empty')
     }
 
     if (!shippingAddress) {
-      return res.status(400).json({ error: 'Shipping address is required' })
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Shipping address is required')
     }
 
     await client.query('BEGIN')
 
-    // calculate total price by fetching each product
-    let totalAmount = 0
-    const cartItems = []
+    const normalizedItems = new Map()
 
     for (const item of items) {
       if (!item.productId || !Number.isInteger(item.quantity) || item.quantity <= 0) {
         await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Invalid cart item quantity' })
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid cart item quantity')
       }
 
-      const productResult = await client.query(
-        'SELECT id, name, price, stock FROM products WHERE id = $1 FOR UPDATE',
-        [item.productId]
-      )
+      const currentQuantity = normalizedItems.get(item.productId) || 0
+      normalizedItems.set(item.productId, currentQuantity + item.quantity)
+    }
 
-      if (productResult.rows.length === 0) {
-        return rollbackAndRespond(404, { error: `Product ${item.productId} not found` })
+    const productIds = Array.from(normalizedItems.keys())
+    const productResult = await client.query(
+      'SELECT id, name, price, stock FROM products WHERE id = ANY($1::int[]) FOR UPDATE',
+      [productIds]
+    )
+
+    if (productResult.rows.length !== productIds.length) {
+      const foundProductIds = new Set(productResult.rows.map((product) => product.id))
+      const missingProductId = productIds.find((productId) => !foundProductIds.has(productId))
+
+      return rollbackAndRespond(404, {
+        error: {
+          code: 'PRODUCT_NOT_FOUND',
+          message: `Product ${missingProductId} not found`,
+        },
+      })
+    }
+
+    const productsById = new Map(productResult.rows.map((product) => [product.id, product]))
+
+    let totalAmount = 0
+    const cartItems = []
+
+    for (const [productId, quantity] of normalizedItems.entries()) {
+      const product = productsById.get(productId)
+
+      if (product.stock < quantity) {
+        return rollbackAndRespond(400, {
+          error: {
+            code: 'INSUFFICIENT_STOCK',
+            message: `Insufficient stock for ${product.name}`,
+          },
+        })
       }
 
-      const product = productResult.rows[0]
-
-      if (product.stock < item.quantity) {
-        return rollbackAndRespond(400, { error: `Insufficient stock for ${product.name}` })
-      }
-
-      totalAmount += parseFloat(product.price) * item.quantity
-      cartItems.push({ ...item, product })
+      totalAmount += parseFloat(product.price) * quantity
+      cartItems.push({ productId, quantity, product })
     }
 
     let discount = 0
@@ -63,14 +86,14 @@ const checkout = async (req, res) => {
 
       if (couponResult.rows.length === 0) {
         await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Invalid or expired coupon' })
+        return sendError(res, 400, 'COUPON_INVALID', 'Invalid or expired coupon')
       }
 
       const coupon = couponResult.rows[0]
 
       if (coupon.used || new Date(coupon.expires_at) <= new Date()) {
         await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Invalid or expired coupon' })
+        return sendError(res, 400, 'COUPON_INVALID', 'Invalid or expired coupon')
       }
 
       discount = parseFloat(coupon.discount_amount)
@@ -88,8 +111,8 @@ const checkout = async (req, res) => {
 
     for (const item of cartItems) {
       await client.query(
-        'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
-        [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
+        'INSERT INTO order_items (order_id, product_id, unit_price_at_purchase, quantity) VALUES ($1, $2, $3, $4)',
+        [order.id, item.productId, item.product.price, item.quantity]
       )
     }
 
@@ -101,21 +124,26 @@ const checkout = async (req, res) => {
 
       if (stockUpdate.rows.length === 0) {
         await client.query('ROLLBACK')
-        return res.status(400).json({ error: `Insufficient stock for ${item.product.name}` })
+        return sendError(res, 400, 'INSUFFICIENT_STOCK', `Insufficient stock for ${item.product.name}`)
       }
     }
 
     await client.query('COMMIT')
 
-    return res.status(201).json({
+    return sendSuccess(res, 201, {
       message: 'Order placed successfully',
       order,
+      items: cartItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPriceAtPurchase: item.product.price,
+      })),
       discount,
     })
   } catch (err) {
     console.error('checkout error:', err.message)
     await client.query('ROLLBACK')
-    return res.status(500).json({ error: 'Checkout failed' })
+    return sendError(res, 500, 'CHECKOUT_FAILED', 'Checkout failed')
   } finally {
     client.release()
   }

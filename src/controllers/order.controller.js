@@ -1,12 +1,35 @@
 const pool = require('../db')
+const { sendError, sendSuccess } = require('../utils/api-response')
 
 // get all orders for the logged in user
 const getOrderHistory = async (req, res) => {
   try {
     const userId = req.user.userId
+    const limit = Math.max(1, Math.min(Number.parseInt(req.query.limit, 10) || 10, 50))
+    const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0)
+
+    const totalResult = await pool.query(
+      'SELECT COUNT(*)::int AS total_orders FROM orders WHERE user_id = $1',
+      [userId]
+    )
 
     const historyResult = await pool.query(
-      `SELECT
+      `WITH paginated_orders AS (
+         SELECT
+           id,
+           user_id,
+           total_amount,
+           discount,
+           shipping_address,
+           status,
+           created_at,
+           updated_at
+         FROM orders
+         WHERE user_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT $2 OFFSET $3
+       )
+       SELECT
          o.id AS order_id,
          o.user_id,
          o.total_amount,
@@ -17,20 +40,17 @@ const getOrderHistory = async (req, res) => {
          o.updated_at AS order_updated_at,
          oi.id AS order_item_id,
          oi.product_id,
-         oi.product_name,
-         oi.product_price,
+         oi.unit_price_at_purchase,
          oi.quantity,
-         oi.unit_price,
          oi.created_at AS order_item_created_at,
          p.name AS item_product_name,
          p.price AS item_product_price,
          p.image_url AS item_image_url
-       FROM orders o
+       FROM paginated_orders o
        LEFT JOIN order_items oi ON oi.order_id = o.id
        LEFT JOIN products p ON p.id = oi.product_id
-       WHERE o.user_id = $1
-       ORDER BY o.created_at DESC, oi.created_at ASC, oi.id ASC`,
-      [userId]
+       ORDER BY o.created_at DESC, o.id DESC, oi.created_at ASC, oi.id ASC`,
+      [userId, limit, offset]
     )
 
     const ordersById = new Map()
@@ -55,10 +75,8 @@ const getOrderHistory = async (req, res) => {
           id: row.order_item_id,
           order_id: row.order_id,
           product_id: row.product_id,
-          product_name: row.product_name,
-          product_price: row.product_price,
+          unit_price_at_purchase: row.unit_price_at_purchase,
           quantity: row.quantity,
-          unit_price: row.unit_price,
           created_at: row.order_item_created_at,
           product: row.product_id
             ? {
@@ -72,10 +90,17 @@ const getOrderHistory = async (req, res) => {
       }
     }
 
-    res.json({ orders: Array.from(ordersById.values()) })
+    return sendSuccess(res, 200, {
+      orders: Array.from(ordersById.values()),
+      pagination: {
+        limit,
+        offset,
+        total: totalResult.rows[0]?.total_orders || 0,
+      },
+    })
   } catch (err) {
     console.error('getOrderHistory error:', err.message)
-    res.status(500).json({ error: 'Failed to fetch order history' })
+    return sendError(res, 500, 'ORDER_HISTORY_FAILED', 'Failed to fetch order history')
   }
 }
 
@@ -87,7 +112,7 @@ const updateOrderStatus = async (req, res) => {
 
     const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status value' })
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid status value')
     }
 
     const result = await pool.query(
@@ -96,13 +121,13 @@ const updateOrderStatus = async (req, res) => {
     )
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' })
+      return sendError(res, 404, 'ORDER_NOT_FOUND', 'Order not found')
     }
 
-    res.json({ message: 'Order status updated', order: result.rows[0] })
+    return sendSuccess(res, 200, { message: 'Order status updated', order: result.rows[0] })
   } catch (err) {
     console.error('updateOrderStatus error:', err.message)
-    res.status(500).json({ error: 'Failed to update order status' })
+    return sendError(res, 500, 'ORDER_STATUS_UPDATE_FAILED', 'Failed to update order status')
   }
 }
 

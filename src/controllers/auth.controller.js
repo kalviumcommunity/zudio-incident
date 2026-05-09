@@ -1,6 +1,7 @@
 const pool = require('../db')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
+const { sendError, sendSuccess } = require('../utils/api-response')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-123'
 const SALT_ROUNDS = 12
@@ -10,13 +11,13 @@ const register = async (req, res) => {
     const { name, email, password, phone } = req.body
 
     if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email and password are required' })
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Name, email and password are required')
     }
 
     // check if user already exists
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email])
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Email already registered' })
+      return sendError(res, 409, 'CONFLICT', 'Email already registered')
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
@@ -32,14 +33,14 @@ const register = async (req, res) => {
       expiresIn: '7d',
     })
 
-    res.status(201).json({
+    return sendSuccess(res, 201, {
       message: 'Registration successful',
       token,
       user,
     })
   } catch (err) {
     console.error('register error:', err.message)
-    res.status(500).json({ error: 'Registration failed' })
+    return sendError(res, 500, 'REGISTRATION_FAILED', 'Registration failed')
   }
 }
 
@@ -48,13 +49,13 @@ const login = async (req, res) => {
     const { email, password } = req.body
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' })
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Email and password are required')
     }
 
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' })
+      return sendError(res, 401, 'AUTH_INVALID_CREDENTIALS', 'Invalid credentials')
     }
 
     const user = result.rows[0]
@@ -62,14 +63,14 @@ const login = async (req, res) => {
     const passwordMatches = await bcrypt.compare(password, user.password)
 
     if (!passwordMatches) {
-      return res.status(401).json({ error: 'Invalid credentials' })
+      return sendError(res, 401, 'AUTH_INVALID_CREDENTIALS', 'Invalid credentials')
     }
 
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: '7d',
     })
 
-    res.json({
+    return sendSuccess(res, 200, {
       message: 'Login successful',
       token,
       user: {
@@ -81,7 +82,7 @@ const login = async (req, res) => {
     })
   } catch (err) {
     console.error('login error:', err.message)
-    res.status(500).json({ error: 'Login failed' })
+    return sendError(res, 500, 'LOGIN_FAILED', 'Login failed')
   }
 }
 
