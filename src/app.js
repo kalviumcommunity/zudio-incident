@@ -8,12 +8,24 @@ const productRoutes = require('./routes/product.routes')
 const authRoutes = require('./routes/auth.routes')
 const orderRoutes = require('./routes/order.routes')
 const cartRoutes = require('./routes/cart.routes')
-
 const app = express()
 
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Timing middleware — add before routes
+app.use((req, res, next) => {
+  global.currentRequest = req
+  req._startTime = Date.now()
+  req._queryCount = 0
+  res.on('finish', () => {
+    const duration = Date.now() - req._startTime
+    console.log(`[PROFILE] ${req.method} ${req.path} → ${duration}ms | ${req._queryCount} queries`)
+    global.currentRequest = null
+  })
+  next()
+})
 
 // routes
 app.use('/api/products', productRoutes)

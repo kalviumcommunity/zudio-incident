@@ -15,4 +15,11 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err)
 })
 
+// Wrap pool.query to count queries for profiling
+const originalQuery = pool.query.bind(pool)
+pool.query = (text, params) => {
+  if (global.currentRequest) global.currentRequest._queryCount++
+  return originalQuery(text, params)
+}
+
 module.exports = pool

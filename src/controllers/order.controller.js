@@ -5,38 +5,53 @@ const getOrderHistory = async (req, res) => {
   try {
     const userId = req.user.userId
 
-    // fetch all orders for this user
-    const ordersResult = await pool.query(
-      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+    // FIXED: Replace N+1 query with single JOIN query
+    // BUG: [HIGH] N+1 Query Problem — nested loops cause exponential queries.
+    // Before: 1 + 50 orders + 250 items = 301 queries
+    // After: 1 JOIN query with complete data
+    const result = await pool.query(
+      `SELECT o.id, o.total_amount, o.discount, o.shipping_address, o.status, o.created_at, o.updated_at,
+              oi.id as item_id, oi.quantity, oi.unit_price,
+              p.id as product_id, p.name as product_name, p.image_url
+       FROM orders o
+       LEFT JOIN order_items oi ON oi.order_id = o.id
+       LEFT JOIN products p ON p.id = oi.product_id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC, oi.id`,
       [userId]
     )
 
-    const orders = ordersResult.rows
-
-    // now we need to get the items for each order
-    for (const order of orders) {
-      const itemsResult = await pool.query(
-        'SELECT * FROM order_items WHERE order_id = $1',
-        [order.id]
-      )
-
-      const items = []
-
-      // get product details for each item in the order
-      for (const item of itemsResult.rows) {
-        const productResult = await pool.query(
-          'SELECT id, name, price, image_url FROM products WHERE id = $1',
-          [item.product_id]
-        )
-
-        items.push({
-          ...item,
-          product: productResult.rows[0] || null,
+    // Group results back into order structure
+    const ordersMap = new Map()
+    for (const row of result.rows) {
+      if (!ordersMap.has(row.id)) {
+        ordersMap.set(row.id, {
+          id: row.id,
+          total_amount: row.total_amount,
+          discount: row.discount,
+          shipping_address: row.shipping_address,
+          status: row.status,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          items: [],
         })
       }
 
-      order.items = items
+      if (row.item_id) {
+        ordersMap.get(row.id).items.push({
+          id: row.item_id,
+          quantity: row.quantity,
+          unit_price: row.unit_price,
+          product: {
+            id: row.product_id,
+            name: row.product_name,
+            image_url: row.image_url,
+          },
+        })
+      }
     }
+
+    const orders = Array.from(ordersMap.values())
 
     res.json({ orders })
   } catch (err) {
