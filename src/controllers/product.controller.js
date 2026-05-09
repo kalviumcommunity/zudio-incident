@@ -10,9 +10,11 @@ const getProducts = async (req, res) => {
     let result
 
     if (search) {
-      // search by name
-      const query = `SELECT * FROM products WHERE name LIKE '%${req.query.search}%'`
-      result = await pool.query(query)
+      // search by name using parameterized query to prevent SQL injection
+      result = await pool.query(
+        'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE p.name ILIKE $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3',
+        [`%${search}%`, parseInt(limit), parseInt(offset)]
+      )
     } else if (category) {
       result = await pool.query(
         'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = $1 LIMIT $2 OFFSET $3',

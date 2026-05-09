@@ -1,6 +1,8 @@
 const pool = require('../db')
 
 const checkout = async (req, res) => {
+  let client
+
   try {
     const userId = req.user.userId
     const { items, couponCode, shippingAddress } = req.body
@@ -14,13 +16,16 @@ const checkout = async (req, res) => {
       return res.status(400).json({ error: 'Shipping address is required' })
     }
 
+    client = await pool.connect()
+    await client.query('BEGIN')
+
     // calculate total price by fetching each product
     let totalAmount = 0
     const cartItems = []
 
     for (const item of items) {
-      const productResult = await pool.query(
-        'SELECT id, name, price, stock FROM products WHERE id = $1',
+      const productResult = await client.query(
+        'SELECT id, name, price, stock FROM products WHERE id = $1 FOR UPDATE',
         [item.productId]
       )
 
@@ -39,86 +44,71 @@ const checkout = async (req, res) => {
     }
 
     let discount = 0
+    let coupon = null
 
     // validate and apply coupon if provided
     if (couponCode) {
-      const couponResult = await pool.query(
-        'SELECT * FROM coupons WHERE code = $1 AND used = false AND expires_at > NOW()',
+      const couponResult = await client.query(
+        'UPDATE coupons SET used = true WHERE code = $1 AND used = false AND expires_at > NOW() RETURNING *',
         [couponCode]
       )
 
       if (couponResult.rows.length === 0) {
+        await client.query('ROLLBACK')
         return res.status(400).json({ error: 'Invalid or expired coupon' })
       }
 
-      const coupon = couponResult.rows[0]
+      coupon = couponResult.rows[0]
       discount = parseFloat(coupon.discount_amount)
       totalAmount = Math.max(0, totalAmount - discount)
-
-      // create the order
-      const orderResult = await pool.query(
-        'INSERT INTO orders (user_id, total_amount, discount, shipping_address, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [userId, totalAmount, discount, shippingAddress, 'pending']
-      )
-
-      const order = orderResult.rows[0]
-
-      // insert order items
-      for (const item of cartItems) {
-        await pool.query(
-          'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
-          [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
-        )
-      }
-
-      // mark as used after confirming order
-      await pool.query('UPDATE coupons SET used = true WHERE id = $1', [coupon.id])
-
-      // TODO: re-enable after testing stock logic
-      // for (const item of cartItems) {
-      //   await pool.query(
-      //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-      //     [item.quantity, item.productId]
-      //   )
-      // }
-
-      return res.status(201).json({
-        message: 'Order placed successfully',
-        order,
-        discount,
-      })
     }
 
-    // no coupon — just create the order
-    const orderResult = await pool.query(
+    // create the order
+    const orderResult = await client.query(
       'INSERT INTO orders (user_id, total_amount, discount, shipping_address, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [userId, totalAmount, 0, shippingAddress, 'pending']
+      [userId, totalAmount, discount, shippingAddress, 'pending']
     )
 
     const order = orderResult.rows[0]
 
+    // insert order items and decrement stock atomically
     for (const item of cartItems) {
-      await pool.query(
+      await client.query(
         'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
         [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
       )
+
+      const stockUpdate = await client.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id, stock',
+        [item.quantity, item.productId]
+      )
+
+      if (stockUpdate.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: `Insufficient stock for ${item.product.name}` })
+      }
     }
+    await client.query('COMMIT')
 
-    // TODO: re-enable after testing stock logic
-    // for (const item of cartItems) {
-    //   await pool.query(
-    //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-    //     [item.quantity, item.productId]
-    //   )
-    // }
-
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Order placed successfully',
       order,
+      discount,
     })
   } catch (err) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK')
+      } catch (rollbackErr) {
+        console.error('rollback error:', rollbackErr.message)
+      }
+    }
     console.error('checkout error:', err.message)
     res.status(500).json({ error: 'Checkout failed' })
+  } finally {
+    if (client) {
+      client.release()
+    }
   }
 }
 

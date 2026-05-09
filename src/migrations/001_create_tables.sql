@@ -103,3 +103,6 @@ CREATE TABLE coupons (
   expires_at      TIMESTAMP,
   created_at      TIMESTAMP DEFAULT NOW()
 );
+
+-- composite index for order history lookups by user and recency
+CREATE INDEX idx_orders_user_date ON orders(user_id, created_at DESC);
