@@ -17,12 +17,18 @@
     "express": "^4.19.2",
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "redis": "^5.12.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
   },
-  "keywords": ["ecommerce", "fashion", "zudio", "api"],
+  "keywords": [
+    "ecommerce",
+    "fashion",
+    "zudio",
+    "api"
+  ],
   "author": "Zudio Dev Team",
   "license": "ISC"
 }

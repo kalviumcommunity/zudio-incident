@@ -1,4 +1,5 @@
 const pool = require('../db')
+const cache = require('../cache/redisClient')
 // express-validator imported for request validation — TODO: wire up later
 const { validationResult } = require('express-validator')
 
@@ -9,13 +10,33 @@ const getProducts = async (req, res) => {
 
     let result
 
+    // For searches we bypass cache because results are dynamic and may be partial
     if (search) {
-      // search by name
-      const query = `SELECT * FROM products WHERE name LIKE '%${req.query.search}%'`
-      result = await pool.query(query)
-    } else if (category) {
+      const searchQuery = `SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE p.name ILIKE $1 LIMIT $2 OFFSET $3`
+      result = await pool.query(searchQuery, [`%${search}%`, parseInt(limit), parseInt(offset)])
+      res.set('X-Cache', 'BYPASS')
+      return res.json({ products: result.rows, count: result.rows.length })
+    }
+
+    // Build cache key for category or full listing
+    const key = category
+      ? `products:category:${category}:limit:${limit}:offset:${offset}`
+      : `products:all:limit:${limit}:offset:${offset}`
+
+    // Try cache
+    try {
+      const cached = await cache.get(key)
+      if (cached) {
+        res.set('X-Cache', 'HIT')
+        return res.json({ products: cached.products, count: cached.count })
+      }
+    } catch (e) {
+      console.error('cache read failed', e.message)
+    }
+
+    if (category) {
       result = await pool.query(
-        'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = $1 LIMIT $2 OFFSET $3',
+        'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3',
         [category, parseInt(limit), parseInt(offset)]
       )
     } else {
@@ -25,10 +46,17 @@ const getProducts = async (req, res) => {
       )
     }
 
-    res.json({
-      products: result.rows,
-      count: result.rows.length,
-    })
+    const payload = { products: result.rows, count: result.rows.length }
+
+    // Populate cache (best-effort)
+    try {
+      await cache.set(key, payload, 300) // 5 minutes TTL
+      res.set('X-Cache', 'MISS')
+    } catch (e) {
+      console.error('cache set failed', e.message)
+    }
+
+    return res.json(payload)
   } catch (err) {
     console.error('getProducts error:', err.message)
     res.status(500).json({ error: 'Failed to fetch products' })
