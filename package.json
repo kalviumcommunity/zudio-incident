@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "migrate": "psql $DATABASE_URL -f src/migrations/001_create_tables.sql",
-    "seed": "psql $DATABASE_URL -f src/seeds/seed.sql",
+    "migrate": "node scripts/run_sql.js src/migrations/001_create_tables.sql",
+    "seed": "node scripts/run_sql.js src/seeds/seed.sql",
     "generate:seed": "node scripts/generate_seed.js"
   },
   "dependencies": {
