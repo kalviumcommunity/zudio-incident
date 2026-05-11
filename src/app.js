@@ -15,6 +15,29 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+app.use((req, res, next) => {
+  const startTime = Date.now()
+  req._queryCount = 0
+  global.__currentRequest = req
+
+  res.on('finish', () => {
+    if (global.__currentRequest === req) {
+      global.__currentRequest = null
+    }
+
+    const duration = Date.now() - startTime
+    console.log(`[PROFILE] ${req.method} ${req.originalUrl} -> ${duration}ms | ${req._queryCount} queries`)
+  })
+
+  res.on('close', () => {
+    if (global.__currentRequest === req) {
+      global.__currentRequest = null
+    }
+  })
+
+  next()
+})
+
 // routes
 app.use('/api/products', productRoutes)
 app.use('/api/auth', authRoutes)
