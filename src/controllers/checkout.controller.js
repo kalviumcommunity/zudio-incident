@@ -1,124 +1,91 @@
 const pool = require('../db')
 
 const checkout = async (req, res) => {
+  const userId = req.user.userId
+  const { items, couponCode, shippingAddress } = req.body
+
+  if (!items || items.length === 0) {
+    return res.status(400).json({ error: 'Cart is empty' })
+  }
+
+  if (!shippingAddress) {
+    return res.status(400).json({ error: 'Shipping address is required' })
+  }
+
+  const client = await pool.connect()
   try {
-    const userId = req.user.userId
-    const { items, couponCode, shippingAddress } = req.body
+    await client.query('BEGIN')
 
-    // items should be an array of { productId, quantity }
-    if (!items || items.length === 0) {
-      return res.status(400).json({ error: 'Cart is empty' })
-    }
-
-    if (!shippingAddress) {
-      return res.status(400).json({ error: 'Shipping address is required' })
-    }
-
-    // calculate total price by fetching each product
-    let totalAmount = 0
+    // load and check product stock (SQLite locks implicitly in transaction)
     const cartItems = []
+    let totalAmount = 0
 
     for (const item of items) {
-      const productResult = await pool.query(
+      const prodRes = await client.query(
         'SELECT id, name, price, stock FROM products WHERE id = $1',
         [item.productId]
       )
-
-      if (productResult.rows.length === 0) {
+      if (prodRes.rows.length === 0) {
+        await client.query('ROLLBACK')
         return res.status(404).json({ error: `Product ${item.productId} not found` })
       }
-
-      const product = productResult.rows[0]
-
+      const product = prodRes.rows[0]
       if (product.stock < item.quantity) {
+        await client.query('ROLLBACK')
         return res.status(400).json({ error: `Insufficient stock for ${product.name}` })
       }
-
       totalAmount += parseFloat(product.price) * item.quantity
       cartItems.push({ ...item, product })
     }
 
     let discount = 0
 
-    // validate and apply coupon if provided
+    // atomically claim coupon if provided
     if (couponCode) {
-      const couponResult = await pool.query(
-        'SELECT * FROM coupons WHERE code = $1 AND used = false AND expires_at > NOW()',
+      const couponUpdate = await client.query(
+        'UPDATE coupons SET used = 1, used_at = CURRENT_TIMESTAMP WHERE code = $1 AND used = 0 AND expires_at > CURRENT_TIMESTAMP RETURNING id, discount_amount',
         [couponCode]
       )
-
-      if (couponResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Invalid or expired coupon' })
+      if (couponUpdate.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: 'Invalid or already used coupon' })
       }
-
-      const coupon = couponResult.rows[0]
-      discount = parseFloat(coupon.discount_amount)
+      discount = parseFloat(couponUpdate.rows[0].discount_amount)
       totalAmount = Math.max(0, totalAmount - discount)
-
-      // create the order
-      const orderResult = await pool.query(
-        'INSERT INTO orders (user_id, total_amount, discount, shipping_address, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [userId, totalAmount, discount, shippingAddress, 'pending']
-      )
-
-      const order = orderResult.rows[0]
-
-      // insert order items
-      for (const item of cartItems) {
-        await pool.query(
-          'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
-          [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
-        )
-      }
-
-      // mark as used after confirming order
-      await pool.query('UPDATE coupons SET used = true WHERE id = $1', [coupon.id])
-
-      // TODO: re-enable after testing stock logic
-      // for (const item of cartItems) {
-      //   await pool.query(
-      //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-      //     [item.quantity, item.productId]
-      //   )
-      // }
-
-      return res.status(201).json({
-        message: 'Order placed successfully',
-        order,
-        discount,
-      })
     }
 
-    // no coupon — just create the order
-    const orderResult = await pool.query(
+    // create order
+    const orderInsert = await client.query(
       'INSERT INTO orders (user_id, total_amount, discount, shipping_address, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [userId, totalAmount, 0, shippingAddress, 'pending']
+      [userId, totalAmount, discount, shippingAddress, 'pending']
     )
+    const order = orderInsert.rows[0]
 
-    const order = orderResult.rows[0]
-
+    // insert items and decrement stock
     for (const item of cartItems) {
-      await pool.query(
+      await client.query(
         'INSERT INTO order_items (order_id, product_id, product_name, product_price, quantity, unit_price) VALUES ($1, $2, $3, $4, $5, $6)',
         [order.id, item.productId, item.product.name, item.product.price, item.quantity, item.product.price]
       )
+
+      const stockUpdate = await client.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id',
+        [item.quantity, item.productId]
+      )
+      if (stockUpdate.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: `Insufficient stock for product ${item.productId}` })
+      }
     }
 
-    // TODO: re-enable after testing stock logic
-    // for (const item of cartItems) {
-    //   await pool.query(
-    //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-    //     [item.quantity, item.productId]
-    //   )
-    // }
-
-    res.status(201).json({
-      message: 'Order placed successfully',
-      order,
-    })
+    await client.query('COMMIT')
+    res.status(201).json({ message: 'Order placed successfully', order, discount })
   } catch (err) {
+    await client.query('ROLLBACK')
     console.error('checkout error:', err.message)
     res.status(500).json({ error: 'Checkout failed' })
+  } finally {
+    client.release()
   }
 }
 
