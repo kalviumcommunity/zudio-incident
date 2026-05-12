@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const dotenv = require('dotenv')
+const requestContext = require('./utils/request-context')
 
 dotenv.config()
 
@@ -14,6 +15,22 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+app.use((req, res, next) => {
+  const context = {
+    startTime: Date.now(),
+    queryCount: 0,
+  }
+
+  requestContext.run(context, () => {
+    res.on('finish', () => {
+      const duration = Date.now() - context.startTime
+      console.log(`[PROFILE] ${req.method} ${req.path} -> ${duration}ms | ${context.queryCount} queries`)
+    })
+
+    next()
+  })
+})
 
 // routes
 app.use('/api/products', productRoutes)
