@@ -42,8 +42,12 @@ const checkout = async (req, res) => {
 
     // validate and apply coupon if provided
     if (couponCode) {
+      // atomic operation: update coupon to mark as used and fetch discount in one query
       const couponResult = await pool.query(
-        'SELECT * FROM coupons WHERE code = $1 AND used = false AND expires_at > NOW()',
+        `UPDATE coupons 
+         SET used = true, used_at = NOW() 
+         WHERE code = $1 AND used = false AND expires_at > NOW()
+         RETURNING id, discount_amount`,
         [couponCode]
       )
 
@@ -74,13 +78,13 @@ const checkout = async (req, res) => {
       // mark as used after confirming order
       await pool.query('UPDATE coupons SET used = true WHERE id = $1', [coupon.id])
 
-      // TODO: re-enable after testing stock logic
-      // for (const item of cartItems) {
-      //   await pool.query(
-      //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-      //     [item.quantity, item.productId]
-      //   )
-      // }
+      // decrement stock for each item in the order
+      for (const item of cartItems) {
+        await pool.query(
+          'UPDATE products SET stock = stock - $1 WHERE id = $2',
+          [item.quantity, item.productId]
+        )
+      }
 
       return res.status(201).json({
         message: 'Order placed successfully',
@@ -104,13 +108,13 @@ const checkout = async (req, res) => {
       )
     }
 
-    // TODO: re-enable after testing stock logic
-    // for (const item of cartItems) {
-    //   await pool.query(
-    //     'UPDATE products SET stock = stock - $1 WHERE id = $2',
-    //     [item.quantity, item.productId]
-    //   )
-    // }
+    // decrement stock for each item in the order
+    for (const item of cartItems) {
+      await pool.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2',
+        [item.quantity, item.productId]
+      )
+    }
 
     res.status(201).json({
       message: 'Order placed successfully',
