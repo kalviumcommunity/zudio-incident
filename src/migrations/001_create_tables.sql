@@ -69,7 +69,7 @@ CREATE TABLE orders (
   created_at       TIMESTAMP DEFAULT NOW(),
   updated_at       TIMESTAMP DEFAULT NOW()
 );
--- intentionally no index on orders.user_id
+CREATE INDEX idx_orders_user_date ON orders(user_id, created_at DESC);
 
 -- ------------------------------------------------------------
 -- order_items
