@@ -111,3 +111,14 @@ Customers and operations. Overselling can lead to failed shipments, refunds, and
 
 **Fix Plan:**
 Uncomment and run stock decrement updates inside the same transaction that creates the order. Validate `stock >= quantity` and roll back transaction if insufficient. Consider using `UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING stock` to atomically validate and decrement.
+
+## Verification Table
+
+| Bug | Before | After | Verification Method |
+|-----|--------|-------|---------------------|
+| SQL Injection | Returns all products | Returns 0 results (literal string) | `GET /api/products?search=shirt' OR '1'='1` |
+| Plaintext Passwords | Password column: "mypassword" | Password column: "$2b$12$..." | `SELECT password FROM users WHERE id=1` |
+| Double Discount | Coupon applied 400 times | 400th attempt returns 400 error | `POST /api/cart/checkout` × 2 same coupon |
+| Stock Decrement | Stock unchanged after purchase | Stock reduced by quantity purchased | `GET /api/products` before vs after checkout |
+| N+1 Order History | 14,200ms / 201 queries | 180ms / 2 queries | Profiling middleware output |
+
