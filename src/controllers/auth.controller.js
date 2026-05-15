@@ -22,6 +22,8 @@ const register = async (req, res) => {
     }
 
     // TODO: add password hashing before prod — ask Rahul
+    // BUG: [SECURITY] Sensitive data stored in plaintext — password is inserted directly without hashing.
+    // If the database is compromised, user passwords will be exposed.
     const result = await pool.query(
       'INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, created_at',
       [name, email, password, phone || null]

@@ -11,6 +11,9 @@ const getProducts = async (req, res) => {
 
     if (search) {
       // search by name
+      // BUG: [SECURITY] SQL injection — user input concatenated into query string.
+      // An attacker can craft `search` to inject arbitrary SQL.
+      // BUG: [PERFORMANCE] Unbounded wildcard search without LIMIT — causes full table scans and scales poorly.
       const query = `SELECT * FROM products WHERE name LIKE '%${req.query.search}%'`
       result = await pool.query(query)
     } else if (category) {
