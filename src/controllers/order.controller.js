@@ -4,40 +4,52 @@ const pool = require('../db')
 const getOrderHistory = async (req, res) => {
   try {
     const userId = req.user.userId
+    // pagination
+    const limit = parseInt(req.query.limit, 10) || 20
+    const offset = parseInt(req.query.offset, 10) || 0
 
-    // fetch all orders for this user
-    const ordersResult = await pool.query(
-      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
-    )
+    // Single JOIN query to fetch orders with their items and product info (avoids N+1)
+    const q = `
+      SELECT o.id as order_id, o.total_amount, o.discount, o.status, o.created_at as order_created_at,
+             oi.id as order_item_id, oi.quantity, oi.unit_price as unit_price_at_purchase,
+             p.id as product_id, p.name as product_name, p.image_url
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      WHERE o.user_id = $1
+      ORDER BY o.created_at DESC
+      LIMIT $2 OFFSET $3
+    `
 
-    const orders = ordersResult.rows
+    const result = await pool.query(q, [userId, limit, offset])
 
-    // now we need to get the items for each order
-    for (const order of orders) {
-      const itemsResult = await pool.query(
-        'SELECT * FROM order_items WHERE order_id = $1',
-        [order.id]
-      )
-
-      const items = []
-
-      // get product details for each item in the order
-      for (const item of itemsResult.rows) {
-        const productResult = await pool.query(
-          'SELECT id, name, price, image_url FROM products WHERE id = $1',
-          [item.product_id]
-        )
-
-        items.push({
-          ...item,
-          product: productResult.rows[0] || null,
-        })
+    // Group rows into orders with items
+    const ordersMap = new Map()
+    for (const row of result.rows) {
+      let order = ordersMap.get(row.order_id)
+      if (!order) {
+        order = {
+          id: row.order_id,
+          total_amount: row.total_amount,
+          discount: row.discount,
+          status: row.status,
+          created_at: row.order_created_at,
+          items: [],
+        }
+        ordersMap.set(row.order_id, order)
       }
 
-      order.items = items
+      order.items.push({
+        id: row.order_item_id,
+        product_id: row.product_id,
+        product_name: row.product_name,
+        image_url: row.image_url,
+        quantity: row.quantity,
+        unit_price_at_purchase: row.unit_price_at_purchase,
+      })
     }
 
+    const orders = Array.from(ordersMap.values())
     res.json({ orders })
   } catch (err) {
     console.error('getOrderHistory error:', err.message)
